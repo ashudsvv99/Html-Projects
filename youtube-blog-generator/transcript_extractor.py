@@ -2,12 +2,13 @@
 YouTube Transcript Extractor
 
 This module handles the extraction of transcripts from YouTube videos
-using the youtube_transcript_api library.
+using the youtube_transcript_api library and YouTube Data API.
 """
 
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 import re
 import logging
+from youtube_api_client import YouTubeAPIClient
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +19,7 @@ class TranscriptExtractor:
     
     def __init__(self):
         """Initialize the TranscriptExtractor."""
-        pass
+        self.youtube_api = YouTubeAPIClient()
     
     def extract_video_id(self, youtube_url):
         """
@@ -48,9 +49,14 @@ class TranscriptExtractor:
                 video_id = match.group(1)
                 # Validate video ID format (should be 11 characters for standard videos)
                 if len(video_id) == 11 and re.match(r'^[A-Za-z0-9_-]+$', video_id):
-                    return video_id
+                    # Verify video ID exists using YouTube API if available
+                    if self.youtube_api.youtube and self.youtube_api.is_valid_video_id(video_id):
+                        return video_id
+                    # If API not available, just return the ID
+                    elif not self.youtube_api.youtube:
+                        return video_id
         
-        raise ValueError("Invalid YouTube URL format. Could not extract a valid video ID.")
+        raise ValueError("Invalid YouTube URL format or video ID not found.")
     
     def get_transcript(self, youtube_url, language=None):
         """
@@ -68,6 +74,7 @@ class TranscriptExtractor:
                 - 'error' (str): Error message if not successful
                 - 'video_id' (str): The YouTube video ID
                 - 'language' (str): The language code of the transcript
+                - 'video_details' (dict): Additional video details if available
         """
         video_id = None
         
@@ -84,7 +91,29 @@ class TranscriptExtractor:
             video_id = self.extract_video_id(youtube_url)
             logger.info(f"Extracting transcript for video ID: {video_id}")
             
-            # Get available transcript list
+            # Get video details from YouTube API if available
+            video_details = None
+            if self.youtube_api.youtube:
+                video_details_result = self.youtube_api.get_video_details(video_id)
+                if video_details_result['success']:
+                    video_details = video_details_result
+                    logger.info(f"Retrieved video details for: {video_details['title']}")
+            
+            # Check for available caption tracks using YouTube API
+            caption_tracks = None
+            if self.youtube_api.youtube:
+                caption_result = self.youtube_api.get_caption_tracks(video_id)
+                if caption_result['success'] and caption_result['caption_tracks']:
+                    caption_tracks = caption_result['caption_tracks']
+                    logger.info(f"Found {len(caption_tracks)} caption tracks")
+                    
+                    # If language specified, check if it's available in caption tracks
+                    if language:
+                        available_languages = [track['language'] for track in caption_tracks]
+                        if language not in available_languages:
+                            logger.warning(f"Requested language '{language}' not found in available captions: {available_languages}")
+            
+            # Get available transcript list using youtube_transcript_api
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             
             # Try to get the transcript in the specified language
@@ -116,12 +145,18 @@ class TranscriptExtractor:
                     'video_id': video_id
                 }
             
-            return {
+            result = {
                 'success': True,
                 'transcript': full_transcript,
                 'video_id': video_id,
                 'language': transcript.language_code
             }
+            
+            # Add video details if available
+            if video_details:
+                result['video_details'] = video_details
+            
+            return result
             
         except TranscriptsDisabled:
             logger.error(f"Transcripts are disabled for video: {video_id}")

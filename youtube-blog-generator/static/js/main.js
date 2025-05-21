@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const extractBtn = document.getElementById('extract-btn');
     const optionsSection = document.getElementById('options-section');
     const transcriptPreview = document.getElementById('transcript-preview');
+    const videoInfoSection = document.getElementById('video-info');
+    const videoTitle = document.getElementById('video-title');
+    const videoChannel = document.getElementById('video-channel');
     const generateBtn = document.getElementById('generate-btn');
     const lengthSelect = document.getElementById('length');
     const styleSelect = document.getElementById('style');
@@ -70,6 +73,32 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Show transcript preview and options section
                     transcriptPreview.textContent = data.transcript;
                     optionsSection.style.display = 'block';
+                    
+                    // Display video info if available
+                    if (data.video_title) {
+                        videoTitle.textContent = data.video_title;
+                        videoChannel.textContent = `Channel: ${data.channel || 'Unknown'}`;
+                        videoInfoSection.style.display = 'block';
+                        
+                        // Auto-populate keywords based on video title if keywords field is empty
+                        if (!keywordsInput.value.trim()) {
+                            const titleWords = data.video_title.split(' ')
+                                .filter(word => word.length > 3)  // Filter out short words
+                                .filter(word => !['and', 'the', 'this', 'that', 'with', 'from'].includes(word.toLowerCase()))  // Filter out common words
+                                .slice(0, 5);  // Take up to 5 words
+                            
+                            if (titleWords.length > 0) {
+                                keywordsInput.value = titleWords.join(', ');
+                            }
+                        }
+                        
+                        // Auto-populate custom title field if empty
+                        if (!customTitleInput.value.trim()) {
+                            customTitleInput.value = data.video_title;
+                        }
+                    } else {
+                        videoInfoSection.style.display = 'none';
+                    }
                     
                     // Scroll to options section
                     optionsSection.scrollIntoView({ behavior: 'smooth' });

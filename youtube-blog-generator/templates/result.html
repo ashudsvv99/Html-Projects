@@ -37,6 +37,14 @@
                 </div>
                 {% endif %}
                 
+                {% if blog.video_details %}
+                <div class="video-details">
+                    <p><strong>Original Video:</strong> <a href="https://www.youtube.com/watch?v={{ video_id }}" target="_blank">{{ blog.video_details.title }}</a></p>
+                    <p><strong>Channel:</strong> {{ blog.video_details.channel }}</p>
+                    <p><strong>Published:</strong> {{ blog.video_details.published_at }}</p>
+                </div>
+                {% endif %}
+                
                 {% if blog.meta_description %}
                 <div class="meta-info">
                     <h3>SEO Metadata</h3>
@@ -80,6 +88,10 @@
                             {% elif section.type == 'introduction' %}
                                 <div class="introduction">
                                     <p>{{ section.content }}</p>
+                                </div>
+                            {% elif section.type == 'image_suggestion' %}
+                                <div class="image-suggestion">
+                                    <p><em>Suggested Image: {{ section.description }}</em></p>
                                 </div>
                             {% endif %}
                         {% endfor %}

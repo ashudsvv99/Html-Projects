@@ -71,21 +71,34 @@ def extract_transcript():
         result = transcript_extractor.get_transcript(youtube_url, language)
         
         if result['success']:
-            # Store transcript in session for later use
+            # Store transcript and video details in session for later use
             session['transcript'] = result['transcript']
             session['video_id'] = result['video_id']
+            
+            # Store video details if available
+            if 'video_details' in result:
+                session['video_details'] = result['video_details']
+                logger.info(f"Stored video details for: {result['video_details'].get('title', 'Unknown')}")
+            
             session.modified = True
             
             # Return success response with preview
             preview_length = min(500, len(result['transcript']))
             preview = result['transcript'][:preview_length] + ('...' if len(result['transcript']) > preview_length else '')
             
-            return jsonify({
+            response_data = {
                 'success': True,
                 'transcript': preview,
                 'video_id': result['video_id'],
                 'language': result.get('language', 'unknown')
-            })
+            }
+            
+            # Add video details to response if available
+            if 'video_details' in result:
+                response_data['video_title'] = result['video_details'].get('title', '')
+                response_data['channel'] = result['video_details'].get('channel_title', '')
+            
+            return jsonify(response_data)
         else:
             # Return error response
             logger.warning(f"Transcript extraction failed: {result['error']}")
@@ -127,6 +140,11 @@ def generate_blog():
                 'success': False,
                 'error': 'No transcript found. Please extract a transcript first.'
             }), 400
+        
+        # Add video details to options if available
+        if 'video_details' in session:
+            options['video_details'] = session['video_details']
+            logger.info(f"Added video details to blog generation options")
         
         # Generate blog
         result = blog_generator.generate_blog(transcript, options)

@@ -32,7 +32,7 @@ class BlogGenerator:
     
     def generate_blog(self, transcript, options):
         """
-        Generate a blog post from a YouTube transcript using DeepSeek API.
+        Generate a blog post from a YouTube video transcript using DeepSeek API.
         
         Args:
             transcript (str): The YouTube video transcript.
@@ -41,6 +41,7 @@ class BlogGenerator:
                 - 'style': Writing style ('conversational', 'professional', 'technical')
                 - 'keywords': List of keywords to include
                 - 'title': Optional custom title
+                - 'video_details': Optional video details from YouTube API
         
         Returns:
             dict: A dictionary containing:
@@ -67,6 +68,7 @@ class BlogGenerator:
             style = options.get('style', 'professional')
             keywords = options.get('keywords', [])
             custom_title = options.get('title', '')
+            video_details = options.get('video_details', None)
             
             # Map length to word count
             word_count_map = {
@@ -83,7 +85,7 @@ class BlogGenerator:
                 transcript = transcript[:max_transcript_length] + "... (truncated)"
             
             # Create prompt for DeepSeek API
-            prompt = self._create_prompt(transcript, target_word_count, style, keywords, custom_title)
+            prompt = self._create_prompt(transcript, target_word_count, style, keywords, custom_title, video_details)
             
             # Call DeepSeek API
             response = self._call_deepseek_api(prompt)
@@ -91,6 +93,16 @@ class BlogGenerator:
             # Process the response
             if response and 'choices' in response:
                 blog_content = self._process_api_response(response)
+                
+                # Add video details to blog content if available
+                if video_details and isinstance(blog_content, dict):
+                    blog_content['video_details'] = {
+                        'title': video_details.get('title', ''),
+                        'channel': video_details.get('channel_title', ''),
+                        'published_at': video_details.get('published_at', ''),
+                        'thumbnail_url': video_details.get('thumbnail_url', '')
+                    }
+                
                 return {
                     'success': True,
                     'blog_content': blog_content
@@ -121,7 +133,7 @@ class BlogGenerator:
                 'error': f'An error occurred during blog generation: {str(e)}'
             }
     
-    def _create_prompt(self, transcript, word_count, style, keywords, custom_title):
+    def _create_prompt(self, transcript, word_count, style, keywords, custom_title, video_details=None):
         """
         Create a prompt for the DeepSeek API based on the transcript and options.
         
@@ -131,47 +143,81 @@ class BlogGenerator:
             style (str): Writing style.
             keywords (list): Keywords to include.
             custom_title (str): Optional custom title.
+            video_details (dict): Optional video details from YouTube API.
             
         Returns:
             str: The formatted prompt for the API.
         """
         keywords_str = ", ".join(keywords) if keywords else "relevant keywords"
         
+        # Add video details to the prompt if available
+        video_context = ""
+        if video_details:
+            video_context = f"""
+            This blog is based on a YouTube video titled: "{video_details.get('title', '')}"
+            Channel: {video_details.get('channel_title', '')}
+            Published: {video_details.get('published_at', '').split('T')[0] if video_details.get('published_at') else ''}
+            
+            Video tags: {', '.join(video_details.get('tags', [])[:10]) if video_details.get('tags') else 'None'}
+            Category: {video_details.get('category_id', '')}
+            
+            Use this information to create a more contextually relevant blog post.
+            """
+        
         prompt = f"""
-        You are an expert content writer. Transform the following YouTube video transcript into a well-structured, 
-        SEO-optimized blog post of approximately {word_count} words.
+        You are an expert content writer specializing in creating engaging, SEO-optimized blog posts from video transcripts.
         
-        Write in a {style} style and include the following keywords where appropriate: {keywords_str}.
+        Transform the following YouTube video transcript into a well-structured, reader-friendly blog post of approximately {word_count} words.
         
-        Structure the blog post with:
-        1. An engaging title {f'(using the suggestion: {custom_title})' if custom_title else ''}
-        2. A compelling introduction that hooks the reader
-        3. Main content with appropriate H2 and H3 headings
-        4. Bullet points or numbered lists where appropriate
-        5. A conclusion with a call-to-action
-        6. A FAQ section with 3-5 relevant questions and answers
+        {video_context}
         
-        Also include:
+        WRITING STYLE AND TONE:
+        - Write in a {style} style that sounds natural and human-written
+        - Avoid overly formal academic language or robotic phrasing
+        - Use conversational transitions between paragraphs
+        - Vary sentence structure and length for better readability
+        - Include occasional rhetorical questions to engage readers
+        - Use active voice predominantly
+        
+        SEO OPTIMIZATION:
+        - Include the following keywords naturally throughout the text: {keywords_str}
+        - Create an SEO-friendly title {f'(using the suggestion: {custom_title})' if custom_title else ''}
+        - Include semantic variations of keywords
+        - Optimize heading structure with relevant keywords
+        - Create a meta description that includes primary keywords
+        
+        CONTENT STRUCTURE:
+        1. An attention-grabbing title that includes primary keywords
+        2. A compelling introduction that hooks the reader (150-200 words)
+        3. Main content with proper H2 and H3 headings (organized by topics from the transcript)
+        4. Use bullet points or numbered lists where appropriate
+        5. Include 2-3 relevant examples or case studies from the transcript
+        6. A conclusion with a clear call-to-action
+        7. A FAQ section with 3-5 relevant questions and answers
+        
+        ADDITIONAL ELEMENTS:
         - Meta description (150-160 characters)
         - SEO title (50-60 characters)
         - 5 relevant tags
+        - Suggested image descriptions for 2-3 places in the article
         
         Format the output as JSON with the following structure:
         {{
-            "title": "Blog Title",
-            "meta_description": "SEO-optimized meta description",
-            "seo_title": "SEO Title",
+            "title": "SEO-Optimized Blog Title",
+            "meta_description": "Compelling meta description with keywords",
+            "seo_title": "Shorter SEO Title with Primary Keyword",
             "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
             "content": "Full blog content with HTML formatting",
             "sections": [
                 {{"type": "introduction", "content": "Intro text"}},
                 {{"type": "heading", "level": 2, "content": "First H2 Heading"}},
                 {{"type": "paragraph", "content": "Paragraph text"}},
-                ...
+                {{"type": "list", "style": "bullet", "items": ["Item 1", "Item 2", "Item 3"]}},
+                {{"type": "image_suggestion", "description": "Suggested image description", "placement": "after paragraph X"}}
             ],
             "faq": [
                 {{"question": "First question?", "answer": "Answer to first question"}},
-                ...
+                {{"question": "Second question?", "answer": "Answer to second question"}}
             ]
         }}
         
@@ -203,14 +249,14 @@ class BlogGenerator:
         data = {
             "model": os.getenv('DEEPSEEK_MODEL', 'deepseek-chat'),
             "messages": [
-                {"role": "system", "content": "You are an expert content writer specializing in converting video transcripts into engaging blog posts."},
+                {"role": "system", "content": "You are an expert content writer specializing in converting video transcripts into engaging, SEO-optimized blog posts that sound natural and human-written."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
             "max_tokens": 4000,
             "top_p": 1,
-            "frequency_penalty": 0,
-            "presence_penalty": 0
+            "frequency_penalty": 0.2,
+            "presence_penalty": 0.1
         }
         
         try:
@@ -270,19 +316,35 @@ class BlogGenerator:
             if json_start >= 0 and json_end > json_start:
                 json_content = content[json_start:json_end]
                 blog_data = json.loads(json_content)
+                
+                # Validate the blog data structure
+                required_fields = ['title', 'content']
+                for field in required_fields:
+                    if field not in blog_data:
+                        logger.warning(f"Required field '{field}' missing from API response")
+                        blog_data[field] = f"Generated {field.capitalize()}"
+                
                 return blog_data
             else:
                 # If no JSON found, return the raw content
+                logger.warning("No JSON structure found in API response")
                 return {
                     "title": "Generated Blog Post",
                     "content": content,
-                    "sections": [{"type": "paragraph", "content": content}]
+                    "sections": [{
+                        "type": "paragraph", 
+                        "content": content
+                    }]
                 }
                 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             # If JSON parsing fails, return the raw content
+            logger.error(f"Failed to parse JSON from API response: {str(e)}")
             return {
                 "title": "Generated Blog Post",
                 "content": content,
-                "sections": [{"type": "paragraph", "content": content}]
+                "sections": [{
+                    "type": "paragraph", 
+                    "content": content
+                }]
             }
