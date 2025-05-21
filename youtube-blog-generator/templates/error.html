@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - YouTube Transcript to Blog Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YouTube Transcript to Blog Generator</h1>
+            <p>Oops! Something went wrong</p>
+        </header>
+
+        <div class="form-container">
+            <div class="error-container" style="text-align: center; padding: 30px;">
+                <h2 style="color: #ea4335; margin-bottom: 20px;">Error</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 30px;">{{ error }}</p>
+                <a href="/" class="btn">Return to Home Page</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

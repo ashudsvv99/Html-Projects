@@ -35,6 +35,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            // Disable form elements during processing
+            setFormState(transcriptForm, false);
+            
             // Show loading spinner
             spinner.style.display = 'block';
             
@@ -43,16 +46,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
                 },
                 body: JSON.stringify({
                     youtube_url: youtubeUrl,
                     language: languageSelect.value
                 }),
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 // Hide spinner
                 spinner.style.display = 'none';
+                
+                // Re-enable form elements
+                setFormState(transcriptForm, true);
                 
                 if (data.success) {
                     // Show transcript preview and options section
@@ -66,11 +78,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     showAlert('Transcript extracted successfully!', 'success');
                     
                     // Add video ID as a hidden input to the blog form
-                    const videoIdInput = document.createElement('input');
-                    videoIdInput.type = 'hidden';
-                    videoIdInput.name = 'video_id';
+                    let videoIdInput = document.getElementById('video-id-input');
+                    if (!videoIdInput) {
+                        videoIdInput = document.createElement('input');
+                        videoIdInput.type = 'hidden';
+                        videoIdInput.id = 'video-id-input';
+                        videoIdInput.name = 'video_id';
+                        blogForm.appendChild(videoIdInput);
+                    }
                     videoIdInput.value = data.video_id;
-                    blogForm.appendChild(videoIdInput);
                 } else {
                     // Show error message
                     showAlert(data.error, 'error');
@@ -80,8 +96,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Hide spinner
                 spinner.style.display = 'none';
                 
+                // Re-enable form elements
+                setFormState(transcriptForm, true);
+                
                 // Show error message
-                showAlert('An error occurred while extracting the transcript.', 'error');
+                showAlert('An error occurred while extracting the transcript. Please try again.', 'error');
                 console.error('Error:', error);
             });
         });
@@ -92,6 +111,9 @@ document.addEventListener('DOMContentLoaded', function() {
         blogForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
+            // Disable form elements during processing
+            setFormState(blogForm, false);
+            
             // Show loading spinner
             spinner.style.display = 'block';
             
@@ -100,6 +122,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
                 },
                 body: JSON.stringify({
                     length: lengthSelect.value,
@@ -108,10 +131,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     title: customTitleInput.value.trim()
                 }),
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 // Hide spinner
                 spinner.style.display = 'none';
+                
+                // Re-enable form elements
+                setFormState(blogForm, true);
                 
                 if (data.success) {
                     // Redirect to result page
@@ -125,8 +156,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Hide spinner
                 spinner.style.display = 'none';
                 
+                // Re-enable form elements
+                setFormState(blogForm, true);
+                
                 // Show error message
-                showAlert('An error occurred while generating the blog.', 'error');
+                showAlert('An error occurred while generating the blog. Please try again.', 'error');
                 console.error('Error:', error);
             });
         });
@@ -159,9 +193,25 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Helper Functions
     
+    // Get CSRF token from meta tag
+    function getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    }
+    
+    // Enable/disable form elements
+    function setFormState(form, enabled) {
+        const elements = form.querySelectorAll('input, select, textarea, button');
+        elements.forEach(element => {
+            element.disabled = !enabled;
+        });
+    }
+    
     // Validate YouTube URL
     function isValidYouTubeUrl(url) {
-        const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)[a-zA-Z0-9_-]{11}(&.*)?$/;
+        if (!url) return false;
+        
+        // More comprehensive regex for YouTube URLs
+        const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)[a-zA-Z0-9_-]{11}([\?&].*)?$/;
         return youtubeRegex.test(url);
     }
     
@@ -186,65 +236,133 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Copy content to clipboard
     function copyToClipboard(format) {
+        // Disable button during processing
+        const button = format === 'html' ? copyHtmlBtn : copyMarkdownBtn;
+        if (button) button.disabled = true;
+        
         fetch('/export', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({
                 format: format
             }),
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            if (button) button.disabled = false;
+            
             if (data.success) {
-                // Create a temporary textarea element to copy the content
-                const textarea = document.createElement('textarea');
-                textarea.value = data.content;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                
-                // Show success message
-                showAlert(`${format.charAt(0).toUpperCase() + format.slice(1)} content copied to clipboard!`, 'success');
+                // Use modern clipboard API with fallback
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(data.content)
+                        .then(() => {
+                            showAlert(`${format.charAt(0).toUpperCase() + format.slice(1)} content copied to clipboard!`, 'success');
+                        })
+                        .catch(err => {
+                            console.error('Clipboard API error:', err);
+                            fallbackCopyToClipboard(data.content);
+                        });
+                } else {
+                    fallbackCopyToClipboard(data.content);
+                }
             } else {
                 // Show error message
                 showAlert(data.error, 'error');
             }
         })
         .catch(error => {
+            if (button) button.disabled = false;
+            
             // Show error message
             showAlert('An error occurred while copying the content.', 'error');
             console.error('Error:', error);
         });
     }
     
+    // Fallback method for copying to clipboard
+    function fallbackCopyToClipboard(text) {
+        try {
+            // Create a temporary textarea element to copy the content
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            
+            // Make the textarea out of viewport
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-999999px';
+            textarea.style.top = '-999999px';
+            
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            if (successful) {
+                showAlert('Content copied to clipboard!', 'success');
+            } else {
+                showAlert('Unable to copy to clipboard. Please try again.', 'error');
+            }
+        } catch (err) {
+            showAlert('Failed to copy content to clipboard.', 'error');
+            console.error('Fallback clipboard error:', err);
+        }
+    }
+    
     // Download content
     function downloadContent(format) {
+        // Disable button during processing
+        const button = format === 'html' ? downloadHtmlBtn : downloadMarkdownBtn;
+        if (button) button.disabled = true;
+        
         fetch('/export', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
             },
             body: JSON.stringify({
                 format: format
             }),
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
+            if (button) button.disabled = false;
+            
             if (data.success) {
                 // Create a blob with the content
-                const blob = new Blob([data.content], { type: format === 'html' ? 'text/html' : 'text/markdown' });
+                const blob = new Blob([data.content], { 
+                    type: format === 'html' ? 'text/html' : 
+                          format === 'markdown' ? 'text/markdown' : 
+                          'text/plain' 
+                });
                 const url = URL.createObjectURL(blob);
                 
                 // Create a temporary link element to download the content
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `blog.${format === 'html' ? 'html' : 'md'}`;
+                link.download = `blog.${format === 'html' ? 'html' : format === 'markdown' ? 'md' : 'txt'}`;
                 document.body.appendChild(link);
                 link.click();
-                document.body.removeChild(link);
+                
+                // Clean up
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }, 100);
                 
                 // Show success message
                 showAlert(`${format.charAt(0).toUpperCase() + format.slice(1)} content downloaded!`, 'success');
@@ -254,10 +372,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         })
         .catch(error => {
+            if (button) button.disabled = false;
+            
             // Show error message
             showAlert('An error occurred while downloading the content.', 'error');
             console.error('Error:', error);
         });
     }
 });
-

@@ -7,6 +7,11 @@ using the youtube_transcript_api library.
 
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 import re
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class TranscriptExtractor:
     """Class to handle YouTube transcript extraction and processing."""
@@ -30,14 +35,22 @@ class TranscriptExtractor:
             r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)',  # Standard and shortened URLs
             r'youtube\.com\/embed\/([^&\n?#]+)',                    # Embedded URLs
             r'youtube\.com\/v\/([^&\n?#]+)',                        # Old embed URLs
+            r'youtube\.com\/shorts\/([^&\n?#]+)',                   # YouTube Shorts URLs
+            r'youtube\.com\/playlist\?.*\blist=([^&\n?#]+)',        # Playlist URLs
         ]
+        
+        # Clean and normalize the URL
+        youtube_url = youtube_url.strip()
         
         for pattern in patterns:
             match = re.search(pattern, youtube_url)
             if match:
-                return match.group(1)
+                video_id = match.group(1)
+                # Validate video ID format (should be 11 characters for standard videos)
+                if len(video_id) == 11 and re.match(r'^[A-Za-z0-9_-]+$', video_id):
+                    return video_id
         
-        raise ValueError("Invalid YouTube URL format. Could not extract video ID.")
+        raise ValueError("Invalid YouTube URL format. Could not extract a valid video ID.")
     
     def get_transcript(self, youtube_url, language=None):
         """
@@ -54,9 +67,22 @@ class TranscriptExtractor:
                 - 'transcript' (str): The extracted transcript text if successful
                 - 'error' (str): Error message if not successful
                 - 'video_id' (str): The YouTube video ID
+                - 'language' (str): The language code of the transcript
         """
+        video_id = None
+        
         try:
+            # Validate input
+            if not youtube_url or not isinstance(youtube_url, str):
+                return {
+                    'success': False,
+                    'error': 'Invalid YouTube URL: URL must be a non-empty string.',
+                    'video_id': None
+                }
+            
+            # Extract video ID
             video_id = self.extract_video_id(youtube_url)
+            logger.info(f"Extracting transcript for video ID: {video_id}")
             
             # Get available transcript list
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
@@ -65,18 +91,30 @@ class TranscriptExtractor:
             if language:
                 try:
                     transcript = transcript_list.find_transcript([language])
+                    logger.info(f"Found transcript in requested language: {language}")
                 except NoTranscriptFound:
+                    logger.warning(f"No transcript found in language: {language}. Trying default language.")
                     # If specified language not found, try to get any available transcript
                     transcript = transcript_list.find_transcript([])
             else:
                 # Get the default transcript (usually in the video's original language)
                 transcript = transcript_list.find_transcript([])
+                logger.info(f"Using default transcript in language: {transcript.language_code}")
             
             # Fetch the transcript data
             transcript_data = transcript.fetch()
             
             # Process the transcript into a single text
             full_transcript = self.process_transcript(transcript_data)
+            
+            # Check if transcript is empty after processing
+            if not full_transcript.strip():
+                logger.warning(f"Transcript for video {video_id} is empty after processing")
+                return {
+                    'success': False,
+                    'error': 'The extracted transcript is empty after processing.',
+                    'video_id': video_id
+                }
             
             return {
                 'success': True,
@@ -86,28 +124,32 @@ class TranscriptExtractor:
             }
             
         except TranscriptsDisabled:
+            logger.error(f"Transcripts are disabled for video: {video_id}")
             return {
                 'success': False,
                 'error': 'Transcripts are disabled for this video.',
-                'video_id': video_id if 'video_id' in locals() else None
+                'video_id': video_id
             }
         except NoTranscriptFound:
+            logger.error(f"No transcript found for video: {video_id}")
             return {
                 'success': False,
                 'error': 'No transcript found for this video.',
-                'video_id': video_id if 'video_id' in locals() else None
+                'video_id': video_id
             }
         except ValueError as e:
+            logger.error(f"Value error: {str(e)}")
             return {
                 'success': False,
                 'error': str(e),
                 'video_id': None
             }
         except Exception as e:
+            logger.error(f"Error extracting transcript: {str(e)}", exc_info=True)
             return {
                 'success': False,
                 'error': f'An error occurred: {str(e)}',
-                'video_id': video_id if 'video_id' in locals() else None
+                'video_id': video_id if video_id else None
             }
     
     def process_transcript(self, transcript_data):
@@ -120,15 +162,23 @@ class TranscriptExtractor:
         Returns:
             str: Processed transcript text.
         """
-        # Combine all transcript segments into a single text
-        transcript_text = ' '.join([segment['text'] for segment in transcript_data])
+        if not transcript_data:
+            logger.warning("Empty transcript data received")
+            return ""
         
-        # Clean up the text
-        # Remove multiple spaces
-        transcript_text = re.sub(r'\s+', ' ', transcript_text)
-        
-        # Remove any special characters or formatting that might be present
-        transcript_text = re.sub(r'\[.*?\]', '', transcript_text)
-        
-        return transcript_text.strip()
-
+        try:
+            # Combine all transcript segments into a single text
+            transcript_text = ' '.join([segment.get('text', '') for segment in transcript_data])
+            
+            # Clean up the text
+            # Remove multiple spaces
+            transcript_text = re.sub(r'\s+', ' ', transcript_text)
+            
+            # Remove any special characters or formatting that might be present
+            # Only remove square brackets content that doesn't contain important information
+            transcript_text = re.sub(r'\[(music|applause|laughter|inaudible|background noise)\]', '', transcript_text, flags=re.IGNORECASE)
+            
+            return transcript_text.strip()
+        except Exception as e:
+            logger.error(f"Error processing transcript: {str(e)}", exc_info=True)
+            return ""

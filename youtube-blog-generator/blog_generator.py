@@ -8,10 +8,15 @@ using the DeepSeek API for text processing and formatting.
 import os
 import requests
 import json
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class BlogGenerator:
     """Class to handle blog generation using DeepSeek API."""
@@ -19,10 +24,11 @@ class BlogGenerator:
     def __init__(self):
         """Initialize the BlogGenerator with API credentials."""
         self.api_key = os.getenv('DEEPSEEK_API_KEY')
-        self.api_url = "https://api.deepseek.com/v1/chat/completions"  # Update with actual DeepSeek API endpoint
+        # Updated with the correct DeepSeek API endpoint
+        self.api_url = os.getenv('DEEPSEEK_API_URL', 'https://api.deepseek.ai/v1/chat/completions')
         
         if not self.api_key:
-            print("Warning: DEEPSEEK_API_KEY not found in environment variables.")
+            logger.warning("DEEPSEEK_API_KEY not found in environment variables.")
     
     def generate_blog(self, transcript, options):
         """
@@ -44,10 +50,16 @@ class BlogGenerator:
         """
         try:
             # Validate input
-            if not transcript or len(transcript.strip()) < 50:
+            if not transcript:
                 return {
                     'success': False,
-                    'error': 'Transcript is too short or empty.'
+                    'error': 'Transcript is empty.'
+                }
+            
+            if len(transcript.strip()) < 50:
+                return {
+                    'success': False,
+                    'error': 'Transcript is too short. It should be at least 50 characters.'
                 }
             
             # Set default options if not provided
@@ -64,6 +76,12 @@ class BlogGenerator:
             }
             target_word_count = word_count_map.get(length, 800)
             
+            # Handle large transcripts by truncating if necessary
+            max_transcript_length = 10000  # Adjust based on API limitations
+            if len(transcript) > max_transcript_length:
+                logger.warning(f"Transcript exceeds {max_transcript_length} characters. Truncating.")
+                transcript = transcript[:max_transcript_length] + "... (truncated)"
+            
             # Create prompt for DeepSeek API
             prompt = self._create_prompt(transcript, target_word_count, style, keywords, custom_title)
             
@@ -78,12 +96,26 @@ class BlogGenerator:
                     'blog_content': blog_content
                 }
             else:
+                logger.error(f"Unexpected API response format: {response}")
                 return {
                     'success': False,
                     'error': 'Failed to generate blog content from API response.'
                 }
                 
+        except requests.exceptions.Timeout:
+            logger.error("API request timed out")
+            return {
+                'success': False,
+                'error': 'The request to the DeepSeek API timed out. Please try again later.'
+            }
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error when calling API")
+            return {
+                'success': False,
+                'error': 'Could not connect to the DeepSeek API. Please check your internet connection and try again.'
+            }
         except Exception as e:
+            logger.error(f"Error during blog generation: {str(e)}", exc_info=True)
             return {
                 'success': False,
                 'error': f'An error occurred during blog generation: {str(e)}'
@@ -167,22 +199,54 @@ class BlogGenerator:
             "Authorization": f"Bearer {self.api_key}"
         }
         
+        # Updated with the correct model name and parameters
         data = {
-            "model": "deepseek-chat",  # Update with the appropriate model name
+            "model": os.getenv('DEEPSEEK_MODEL', 'deepseek-chat'),
             "messages": [
                 {"role": "system", "content": "You are an expert content writer specializing in converting video transcripts into engaging blog posts."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
-            "max_tokens": 4000
+            "max_tokens": 4000,
+            "top_p": 1,
+            "frequency_penalty": 0,
+            "presence_penalty": 0
         }
         
-        response = requests.post(self.api_url, headers=headers, data=json.dumps(data))
-        
-        if response.status_code == 200:
+        try:
+            # Added timeout parameter
+            response = requests.post(
+                self.api_url, 
+                headers=headers, 
+                data=json.dumps(data),
+                timeout=60  # 60 second timeout
+            )
+            
+            response.raise_for_status()  # Raise exception for 4XX/5XX responses
+            
             return response.json()
-        else:
-            raise Exception(f"API request failed with status code {response.status_code}: {response.text}")
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code
+            error_message = f"API request failed with status code {status_code}"
+            
+            try:
+                error_data = e.response.json()
+                if 'error' in error_data:
+                    error_message += f": {error_data['error']}"
+            except:
+                error_message += f": {e.response.text}"
+            
+            logger.error(error_message)
+            raise Exception(error_message)
+        except requests.exceptions.Timeout:
+            logger.error("API request timed out")
+            raise requests.exceptions.Timeout("Request to DeepSeek API timed out")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error")
+            raise
+        except Exception as e:
+            logger.error(f"Error calling DeepSeek API: {str(e)}", exc_info=True)
+            raise
     
     def _process_api_response(self, response):
         """
@@ -222,4 +286,3 @@ class BlogGenerator:
                 "content": content,
                 "sections": [{"type": "paragraph", "content": content}]
             }
-
