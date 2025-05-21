@@ -1,0 +1,186 @@
+"""
+YouTube Transcript to Blog Generator
+
+A Flask web application that converts YouTube video transcripts into
+well-structured blog posts using the DeepSeek API.
+"""
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+import os
+import json
+from dotenv import load_dotenv
+from transcript_extractor import TranscriptExtractor
+from blog_generator import BlogGenerator
+import markdown
+
+# Load environment variables
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
+
+# Initialize components
+transcript_extractor = TranscriptExtractor()
+blog_generator = BlogGenerator()
+
+@app.route('/')
+def index():
+    """Render the main page."""
+    return render_template('index.html')
+
+@app.route('/extract-transcript', methods=['POST'])
+def extract_transcript():
+    """
+    Extract transcript from a YouTube video URL.
+    
+    Returns:
+        JSON response with the extracted transcript or error message.
+    """
+    data = request.get_json()
+    youtube_url = data.get('youtube_url')
+    language = data.get('language')
+    
+    if not youtube_url:
+        return jsonify({
+            'success': False,
+            'error': 'YouTube URL is required.'
+        }), 400
+    
+    # Extract transcript
+    result = transcript_extractor.get_transcript(youtube_url, language)
+    
+    if result['success']:
+        # Store transcript in session for later use
+        session['transcript'] = result['transcript']
+        session['video_id'] = result['video_id']
+        
+        # Return success response
+        return jsonify({
+            'success': True,
+            'transcript': result['transcript'][:500] + '...',  # Preview of transcript
+            'video_id': result['video_id']
+        })
+    else:
+        # Return error response
+        return jsonify({
+            'success': False,
+            'error': result['error']
+        }), 400
+
+@app.route('/generate-blog', methods=['POST'])
+def generate_blog():
+    """
+    Generate a blog post from the extracted transcript.
+    
+    Returns:
+        JSON response with the generated blog content or error message.
+    """
+    data = request.get_json()
+    options = {
+        'length': data.get('length', 'medium'),
+        'style': data.get('style', 'professional'),
+        'keywords': data.get('keywords', '').split(',') if data.get('keywords') else [],
+        'title': data.get('title', '')
+    }
+    
+    # Get transcript from session
+    transcript = session.get('transcript')
+    
+    if not transcript:
+        return jsonify({
+            'success': False,
+            'error': 'No transcript found. Please extract a transcript first.'
+        }), 400
+    
+    # Generate blog
+    result = blog_generator.generate_blog(transcript, options)
+    
+    if result['success']:
+        # Store blog content in session
+        session['blog_content'] = result['blog_content']
+        
+        # Return success response
+        return jsonify({
+            'success': True,
+            'redirect': url_for('result')
+        })
+    else:
+        # Return error response
+        return jsonify({
+            'success': False,
+            'error': result['error']
+        }), 400
+
+@app.route('/result')
+def result():
+    """Render the result page with the generated blog content."""
+    # Get blog content from session
+    blog_content = session.get('blog_content')
+    video_id = session.get('video_id')
+    
+    if not blog_content:
+        return redirect(url_for('index'))
+    
+    # Convert markdown content to HTML if needed
+    if isinstance(blog_content, dict) and 'content' in blog_content:
+        # Check if content is in markdown format
+        if not blog_content['content'].startswith('<'):
+            blog_content['html_content'] = markdown.markdown(blog_content['content'])
+        else:
+            blog_content['html_content'] = blog_content['content']
+    
+    return render_template('result.html', blog=blog_content, video_id=video_id)
+
+@app.route('/export', methods=['POST'])
+def export_blog():
+    """
+    Export the generated blog content in various formats.
+    
+    Returns:
+        The blog content in the requested format.
+    """
+    data = request.get_json()
+    export_format = data.get('format', 'html')
+    
+    # Get blog content from session
+    blog_content = session.get('blog_content')
+    
+    if not blog_content:
+        return jsonify({
+            'success': False,
+            'error': 'No blog content found.'
+        }), 400
+    
+    if export_format == 'json':
+        return jsonify({
+            'success': True,
+            'content': blog_content
+        })
+    elif export_format == 'markdown':
+        # Convert HTML to markdown if needed
+        if 'content' in blog_content:
+            return jsonify({
+                'success': True,
+                'content': blog_content['content']
+            })
+    elif export_format == 'html':
+        # Return HTML content
+        if 'html_content' in blog_content:
+            return jsonify({
+                'success': True,
+                'content': blog_content['html_content']
+            })
+        elif 'content' in blog_content:
+            return jsonify({
+                'success': True,
+                'content': blog_content['content']
+            })
+    
+    return jsonify({
+        'success': False,
+        'error': f'Unsupported export format: {export_format}'
+    }), 400
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
