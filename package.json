@@ -1,0 +1,49 @@
+{
+  "name": "learning-platform",
+  "version": "1.0.0",
+  "description": "360° Learning and Tracking Platform",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm start",
+    "client": "cd client && npm start",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "electron:dev": "concurrently \"npm run server\" \"npm run client\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.0.1",
+    "electron": "^25.0.0",
+    "electron-builder": "^24.4.0",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "appId": "com.learning.platform",
+    "productName": "Learning Platform",
+    "files": [
+      "electron/**/*",
+      "server/dist/**/*",
+      "client/build/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
+
