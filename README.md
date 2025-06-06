@@ -1,117 +1,150 @@
 # 360° Learning and Tracking Platform
 
-A comprehensive personal learning and tracking platform that helps you manage your educational journey, projects, tasks, and lifestyle habits in one place.
+A comprehensive personal learning management system designed to track your educational journey, projects, tasks, and lifestyle habits in one integrated platform.
 
-## Features
+![Learning Platform Dashboard](https://via.placeholder.com/1200x600?text=360+Learning+Platform)
 
-### Dashboard
-- Quick-stats cards (Total Courses, Active Projects, XP/Streaks, Pending Todos)
-- Today's Snapshot (Upcoming tasks, Journal highlights, Habit summary)
-- Progress tracking (Course progress, Project status, Lifestyle metrics)
+## 🌟 Features
 
-### Learning
-- **Courses**: Track your progress in various courses
-- **Projects**: Manage your learning projects with detailed tracking
-- **Interview Preparation**: Prepare for interviews with question banks, mock interviews, and resources
+### 📊 Dashboard
+- **Quick-stats cards**: Track your total courses, active projects, XP/streaks, and pending todos
+- **Today's Snapshot**: View upcoming tasks, journal highlights, and habit summary
+- **Progress Tracking**: Monitor course progress and project status
 
-### Organization
-- **Tasks**: Manage your to-do lists with priorities and deadlines
-- **Notes**: Take and organize notes with rich text support
+### 🎓 Learning
+- **Courses**: Manage and track progress in various courses
+- **Projects**: Organize learning projects with detailed tracking
+- **Interview Preparation**: Practice with question banks and mock interviews
 
-### Lifestyle Monitoring
-- **Knowledge Management**:
-  - Knowledge Vault: Store and organize concept cards
-  - Flashcards: Create and review flashcards with spaced repetition
-  - Idea Incubator: Capture and categorize ideas
-- **Journal**: Track daily activities, habits, mood, and reflections
+### 📝 Organization
+- **Tasks**: Manage to-do lists with priorities, due dates, and tags
+- **Notes**: Create and organize rich text/markdown notes
 
-## Tech Stack
+### 🔱 Lifestyle Monitoring
+- **Knowledge Management**: Build your second brain with concept cards and flashcards
+- **Daily Journal**: Track daily habits, mood, and reflections
 
-### Frontend
-- React with TypeScript
-- Material-UI for components
-- React Router for navigation
-- Axios for API requests
-- React Big Calendar for calendar views
-- React Markdown for rich text rendering
-
-### Backend
-- Node.js with Express
-- Knex.js for database queries and migrations
-- SQLite for development, PostgreSQL for production
-- RESTful API architecture
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v14 or higher)
+- Node.js (v14.0.0 or higher)
 - npm or yarn
+- PostgreSQL (recommended for production)
 
 ### Installation
 
-1. Clone the repository
-```
-git clone https://github.com/yourusername/learning-platform.git
-cd learning-platform
-```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/learning-platform.git
+   cd learning-platform
+   ```
 
-2. Install dependencies for both client and server
-```
-# Install client dependencies
-cd client
-npm install
+2. **Install dependencies**
+   ```bash
+   # Install server dependencies
+   cd server
+   npm install
 
-# Install server dependencies
-cd ../server
-npm install
-```
+   # Install client dependencies
+   cd ../client
+   npm install
+   ```
 
-3. Set up the database
-```
-# Run migrations
-npm run migrate
+3. **Set up environment variables**
+   ```bash
+   # In the server directory
+   cp .env.example .env
+   # Edit .env with your database credentials
 
-# (Optional) Run seeds for sample data
-npm run seed
-```
+   # In the client directory
+   cp .env.example .env
+   ```
 
-4. Start the development servers
-```
-# Start the backend server (from the server directory)
-npm run dev
+4. **Set up the database**
+   ```bash
+   # In the server directory
+   npm run migrate
+   ```
 
-# Start the frontend server (from the client directory)
-cd ../client
-npm start
-```
+5. **Start the development servers**
+   ```bash
+   # Start the server (from server directory)
+   npm run dev
 
-5. Open your browser and navigate to `http://localhost:3000`
+   # Start the client (from client directory)
+   npm start
+   ```
 
-## Project Structure
+6. **Access the application**
+   - Open your browser and navigate to `http://localhost:3000`
+
+## 🏗️ Project Structure
 
 ```
 learning-platform/
 ├── client/                 # Frontend React application
 │   ├── public/             # Static files
-│   ├── src/                # Source files
-│   │   ├── components/     # Reusable components
-│   │   ├── pages/          # Page components
-│   │   ├── App.tsx         # Main application component
-│   │   └── index.tsx       # Entry point
-│   └── package.json        # Frontend dependencies
+│   └── src/
+│       ├── components/     # Reusable UI components
+│       ├── pages/          # Page components
+│       ├── services/       # API services
+│       └── App.tsx         # Main application component
 │
-├── server/                 # Backend Node.js application
-│   ├── src/                # Source files
-│   │   ├── db/             # Database related files
-│   │   │   ├── migrations/ # Database migrations
-│   │   │   └── seeds/      # Database seeds
+├── server/                 # Backend Node.js/Express application
+│   ├── src/
+│   │   ├── db/             # Database setup and migrations
 │   │   ├── routes/         # API routes
-│   │   └── index.js        # Entry point
-│   └── package.json        # Backend dependencies
+│   │   └── index.ts        # Server entry point
+│   └── knexfile.js         # Knex configuration
 │
 └── README.md               # Project documentation
 ```
 
-## License
+## 📚 Documentation
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- [User Guide](./docs/USER_GUIDE.md) - How to use the platform
+- [API Documentation](./docs/API_DOCS.md) - API endpoints and usage
+- [Development Guide](./docs/DEVELOPMENT.md) - Guide for developers
+- [Database Schema](./docs/DATABASE_SCHEMA.md) - Database structure
+
+## 🧩 Core Modules
+
+### Dashboard Module
+The dashboard provides an overview of your learning journey with quick-stats cards, progress indicators, and upcoming tasks.
+
+### Learning Module
+Manage your educational content, track course progress, and organize learning projects. Includes an interview preparation system with question banks and mock interview scheduling.
+
+### Organization Module
+Keep track of tasks and notes in a structured manner. Tasks can be organized with priorities, due dates, and tags, while notes support rich text and markdown.
+
+### Lifestyle Monitoring Module
+Build your second brain with knowledge management tools and track daily habits with the journal system.
+
+## 🔧 Technologies Used
+
+### Frontend
+- React
+- TypeScript
+- Material-UI
+- React Router
+- Axios
+
+### Backend
+- Node.js
+- Express
+- Knex.js
+- PostgreSQL
+- TypeScript
+
+## 🤝 Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgements
+- [Material-UI](https://mui.com/) for the UI components
+- [React Big Calendar](https://github.com/jquense/react-big-calendar) for the calendar views
+- [React Markdown](https://github.com/remarkjs/react-markdown) for markdown rendering
+
